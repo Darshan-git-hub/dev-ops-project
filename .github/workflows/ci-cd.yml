@@ -147,7 +147,13 @@ jobs:
         docker tag $ECR_REPO:$IMAGE_TAG $ECR_REPO:latest
         docker push $ECR_REPO:latest
     
-    - name: Update EC2 Instance (Redeploy)
+    - name: Get Application URL
       run: |
         INSTANCE_IP=$(cd terraform && terraform output -raw instance_public_ip)
-        echo "Application deployed at: http://$INSTANCE_IP"
+        echo "=========================================="
+        echo "🎉 DEPLOYMENT SUCCESSFUL!"
+        echo "=========================================="
+        echo "Frontend: http://$INSTANCE_IP"
+        echo "Backend API: http://$INSTANCE_IP:5000"
+        echo "Health Check: http://$INSTANCE_IP:5000/health"
+        echo "=========================================="
