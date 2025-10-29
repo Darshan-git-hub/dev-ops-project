@@ -149,6 +149,11 @@ resource "aws_ecr_repository" "frontend" {
   tags = {
     Name = "gamezone-frontend"
   }
+
+  lifecycle {
+    prevent_destroy = false
+    ignore_changes  = [name]
+  }
 }
 
 resource "aws_ecr_repository" "backend" {
@@ -161,6 +166,11 @@ resource "aws_ecr_repository" "backend" {
 
   tags = {
     Name = "gamezone-backend"
+  }
+
+  lifecycle {
+    prevent_destroy = false
+    ignore_changes  = [name]
   }
 }
 
