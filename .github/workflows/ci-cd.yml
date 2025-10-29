@@ -96,11 +96,13 @@ jobs:
       working-directory: ./terraform
       run: terraform init
     
-    - name: Import Existing ECR Repositories
+    - name: Import Existing Resources
       working-directory: ./terraform
       run: |
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_ecr_repository.frontend gamezone-frontend || true
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_ecr_repository.backend gamezone-backend || true
+        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_role.ec2_ecr_role gamezone-ec2-ecr-role || true
+        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_instance_profile.ec2_profile gamezone-ec2-profile || true
       continue-on-error: true
     
     - name: Terraform Apply (Create infrastructure)
