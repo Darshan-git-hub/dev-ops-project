@@ -99,8 +99,9 @@ jobs:
     - name: Import Existing Resources
       working-directory: ./terraform
       run: |
-        # Get AWS account ID for imports
+        # Get AWS account ID and VPC ID for imports
         AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        DEFAULT_VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text --region ${{ env.AWS_REGION }})
         
         # Import ECR repositories
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_ecr_repository.frontend gamezone-frontend || true
@@ -110,6 +111,12 @@ jobs:
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_role.ec2_ecr_role gamezone-ec2-ecr-role || true
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_instance_profile.ec2_profile gamezone-ec2-profile || true
         terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_role_policy_attachment.ecr_read_only gamezone-ec2-ecr-role/arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly || true
+        
+        # Import Security Group (get ID first)
+        SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=gamezone-sg" "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "SecurityGroups[0].GroupId" --output text --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
+        if [ ! -z "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
+          terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_security_group.gamezone_sg $SG_ID || true
+        fi
       continue-on-error: true
     
     - name: Terraform Apply (Create infrastructure)
