@@ -1,49 +1,23 @@
-resource "aws_vpc" "gamezone_vpc" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags = {
-    Name = "gamezone-vpc"
+# Use default VPC instead of creating a new one
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 }
 
-resource "aws_subnet" "public_subnet" {
-  vpc_id                  = aws_vpc.gamezone_vpc.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = var.availability_zone
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "gamezone-public-subnet"
-  }
-}
-
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.gamezone_vpc.id
-  tags = {
-    Name = "gamezone-igw"
-  }
-}
-
-resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.gamezone_vpc.id
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-  tags = {
-    Name = "gamezone-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "public_rta" {
-  subnet_id      = aws_subnet.public_subnet.id
-  route_table_id = aws_route_table.public_rt.id
+data "aws_subnet" "default" {
+  id = tolist(data.aws_subnets.default.ids)[0]
 }
 
 resource "aws_security_group" "gamezone_sg" {
   name        = "gamezone-sg"
   description = "Security group for GameZone"
-  vpc_id      = aws_vpc.gamezone_vpc.id
+  vpc_id      = data.aws_vpc.default.id
 
   ingress {
     from_port   = 80
@@ -81,9 +55,10 @@ resource "aws_security_group" "gamezone_sg" {
 resource "aws_instance" "gamezone_server" {
   ami                    = var.ami_id
   instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public_subnet.id
+  subnet_id              = data.aws_subnet.default.id
   vpc_security_group_ids = [aws_security_group.gamezone_sg.id]
   key_name               = var.key_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   user_data = <<-EOF
               #!/bin/bash

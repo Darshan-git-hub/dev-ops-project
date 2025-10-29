@@ -10,7 +10,7 @@ output "application_url" {
 
 output "vpc_id" {
   description = "VPC ID"
-  value       = aws_vpc.gamezone_vpc.id
+  value       = data.aws_vpc.default.id
 }
 
 output "security_group_id" {
