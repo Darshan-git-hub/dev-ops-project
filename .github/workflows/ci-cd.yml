@@ -86,53 +86,15 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
     
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.6.0
-        terraform_wrapper: false
-    
-    - name: Terraform Init
-      working-directory: ./terraform
-      run: terraform init
-    
-    - name: Import Existing Resources
-      working-directory: ./terraform
-      run: |
-        # Get AWS account ID and VPC ID for imports
-        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        DEFAULT_VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query "Vpcs[0].VpcId" --output text --region ${{ env.AWS_REGION }})
-        
-        # Import ECR repositories
-        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_ecr_repository.frontend gamezone-frontend || true
-        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_ecr_repository.backend gamezone-backend || true
-        
-        # Import IAM resources
-        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_role.ec2_ecr_role gamezone-ec2-ecr-role || true
-        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_instance_profile.ec2_profile gamezone-ec2-profile || true
-        terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_iam_role_policy_attachment.ecr_read_only gamezone-ec2-ecr-role/arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly || true
-        
-        # Import Security Group (get ID first)
-        SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=gamezone-sg" "Name=vpc-id,Values=$DEFAULT_VPC_ID" --query "SecurityGroups[0].GroupId" --output text --region ${{ env.AWS_REGION }} 2>/dev/null || echo "")
-        if [ ! -z "$SG_ID" ] && [ "$SG_ID" != "None" ]; then
-          terraform import -var="key_name=${{ secrets.AWS_KEY_NAME }}" aws_security_group.gamezone_sg $SG_ID || true
-        fi
-      continue-on-error: true
-    
-    - name: Terraform Apply (Create infrastructure)
-      working-directory: ./terraform
-      run: terraform apply -auto-approve -var="key_name=${{ secrets.AWS_KEY_NAME }}"
-    
-    - name: Get ECR Repository URLs
-      id: ecr-urls
-      working-directory: ./terraform
-      run: |
-        echo "frontend_repo=$(terraform output -raw ecr_frontend_repository_url)" >> $GITHUB_OUTPUT
-        echo "backend_repo=$(terraform output -raw ecr_backend_repository_url)" >> $GITHUB_OUTPUT
-    
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Get ECR Repository URLs
+      id: ecr-urls
+      run: |
+        echo "frontend_repo=${{ steps.login-ecr.outputs.registry }}/gamezone-frontend" >> $GITHUB_OUTPUT
+        echo "backend_repo=${{ steps.login-ecr.outputs.registry }}/gamezone-backend" >> $GITHUB_OUTPUT
     
     - name: Build and Push Frontend Image
       env:
@@ -154,13 +116,17 @@ jobs:
         docker tag $ECR_REPO:$IMAGE_TAG $ECR_REPO:latest
         docker push $ECR_REPO:latest
     
-    - name: Get Application URL
+    - name: Deployment Complete
       run: |
-        INSTANCE_IP=$(cd terraform && terraform output -raw instance_public_ip)
         echo "=========================================="
-        echo "🎉 DEPLOYMENT SUCCESSFUL!"
+        echo "🎉 IMAGES PUSHED TO ECR!"
         echo "=========================================="
-        echo "Frontend: http://$INSTANCE_IP"
-        echo "Backend API: http://$INSTANCE_IP:5000"
-        echo "Health Check: http://$INSTANCE_IP:5000/health"
+        echo "Frontend: ${{ steps.ecr-urls.outputs.frontend_repo }}:latest"
+        echo "Backend: ${{ steps.ecr-urls.outputs.backend_repo }}:latest"
+        echo ""
+        echo "To update EC2, SSH in and run:"
+        echo "cd ~/projects/dev-ops-project"
+        echo "git pull"
+        echo "sudo docker-compose pull"
+        echo "sudo docker-compose up -d"
         echo "=========================================="
