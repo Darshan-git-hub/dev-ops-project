@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   mongodb:
     image: mongo:latest
@@ -30,9 +29,9 @@ services:
     build: ./frontend
     container_name: gamezone-frontend
     ports:
-      - "3000:3000"
+      - "80:80"
     environment:
-      - VITE_API_URL=http://localhost:5000
+      - VITE_API_URL=http://13.203.206.140:5000
     depends_on:
       - backend
     volumes:
